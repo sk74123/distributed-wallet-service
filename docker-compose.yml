@@ -1,16 +1,3 @@
-"""
-Docker Compose for local development.
-
-Services:
-  postgres  — primary database
-  kafka     — message broker (KRaft mode, no Zookeeper)
-  redis     — rate limiting store
-  api       — FastAPI application
-
-All services share the 'wallet-net' bridge network.
-Postgres and Kafka data are persisted via named volumes.
-"""
-
 services:
 
   # ---------------------------------------------------------------------------
