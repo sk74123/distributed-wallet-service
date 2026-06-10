@@ -21,3 +21,4 @@ venv.bak/
 *.tmp
 *.egg-info/
 dist/
+.env
