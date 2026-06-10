@@ -1,0 +1,120 @@
+"""
+Docker Compose for local development.
+
+Services:
+  postgres  — primary database
+  kafka     — message broker (KRaft mode, no Zookeeper)
+  redis     — rate limiting store
+  api       — FastAPI application
+
+All services share the 'wallet-net' bridge network.
+Postgres and Kafka data are persisted via named volumes.
+"""
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — primary datastore
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: wallet-postgres
+    environment:
+      POSTGRES_DB: wallet_db
+      POSTGRES_USER: wallet_user
+      POSTGRES_PASSWORD: wallet_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wallet-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet_user -d wallet_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Kafka — message broker in KRaft mode (no Zookeeper required)
+  # KAFKA_CFG_PROCESS_ROLES=broker,controller — single node acts as both
+  # KAFKA_CFG_LISTENERS — internal (PLAINTEXT) + controller ports
+  # KAFKA_CFG_ADVERTISED_LISTENERS — what clients use to connect
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: wallet-kafka
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    networks:
+      - wallet-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Redis — used only for rate limiting on the API layer
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: wallet-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - wallet-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # API — FastAPI application
+  # Waits for postgres and kafka to pass their health checks before starting
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wallet-api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - wallet-net
+    restart: on-failure
+
+# ---------------------------------------------------------------------------
+# Named volumes — data persists across docker compose down / up
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+  kafka_data:
+
+# ---------------------------------------------------------------------------
+# Shared bridge network — all services resolve each other by container name
+# ---------------------------------------------------------------------------
+networks:
+  wallet-net:
+    driver: bridge
