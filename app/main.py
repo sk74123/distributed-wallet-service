@@ -104,9 +104,9 @@ async def duplicate_transfer_handler(request: Request, exc: DuplicateTransferErr
 # Uncommented as each phase is completed.
 # ---------------------------------------------------------------------------
 
-# from app.wallet.router import router as wallet_router
+from app.wallet.router import router as wallet_router
 # from app.transfer.router import router as transfer_router
-# app.include_router(wallet_router, prefix="/wallets", tags=["Wallets"])
+app.include_router(wallet_router, prefix="/wallets", tags=["Wallets"])
 # app.include_router(transfer_router, prefix="/transfers", tags=["Transfers"])
 
 

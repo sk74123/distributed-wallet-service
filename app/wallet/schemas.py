@@ -12,7 +12,7 @@ returning — the router never sees a raw SQLAlchemy model.
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class CreateWalletRequest(BaseModel):
@@ -39,16 +39,6 @@ class FundWalletRequest(BaseModel):
         description="Amount to add in INR. Must be positive.",
     )
 
-    @field_validator("amount")
-    @classmethod
-    def validate_amount_precision(cls, v: Decimal) -> Decimal:
-        """
-        Reject amounts with more than 2 decimal places.
-        e.g. 100.123 is invalid, 100.12 is valid.
-        """
-        if v.as_tuple().exponent < -2:
-            raise ValueError("Amount cannot have more than 2 decimal places")
-        return v
 
 
 class WalletResponse(BaseModel):
