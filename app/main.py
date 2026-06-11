@@ -81,8 +81,8 @@ async def insufficient_balance_handler(request: Request, exc: InsufficientBalanc
         content={
             "detail": str(exc),
             "wallet_id": exc.wallet_id,
-            "required": float(exc.required),
-            "available": float(exc.available),
+            "required": str(exc.required),
+            "available": str(exc.available),
         },
     )
 
@@ -105,9 +105,9 @@ async def duplicate_transfer_handler(request: Request, exc: DuplicateTransferErr
 # ---------------------------------------------------------------------------
 
 from app.wallet.router import router as wallet_router
-# from app.transfer.router import router as transfer_router
+from app.transfer.router import router as transfer_router
 app.include_router(wallet_router, prefix="/wallets", tags=["Wallets"])
-# app.include_router(transfer_router, prefix="/transfers", tags=["Transfers"])
+app.include_router(transfer_router, prefix="/transfers", tags=["Transfers"])
 
 
 @app.get("/health", tags=["Health"])
