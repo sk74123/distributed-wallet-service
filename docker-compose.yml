@@ -24,9 +24,6 @@ services:
 
   # ---------------------------------------------------------------------------
   # Kafka — message broker in KRaft mode (no Zookeeper required)
-  # KAFKA_CFG_PROCESS_ROLES=broker,controller — single node acts as both
-  # KAFKA_CFG_LISTENERS — internal (PLAINTEXT) + controller ports
-  # KAFKA_CFG_ADVERTISED_LISTENERS — what clients use to connect
   # ---------------------------------------------------------------------------
   kafka:
     image: bitnami/kafka:3.7
@@ -71,7 +68,6 @@ services:
 
   # ---------------------------------------------------------------------------
   # API — FastAPI application
-  # Waits for postgres and kafka to pass their health checks before starting
   # ---------------------------------------------------------------------------
   api:
     build:
@@ -92,16 +88,31 @@ services:
       - wallet-net
     restart: on-failure
 
-# ---------------------------------------------------------------------------
-# Named volumes — data persists across docker compose down / up
-# ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Outbox Publisher — polls outbox table and publishes to Kafka
+  # Runs as a separate process so it restarts independently of the API.
+  # Depends on both postgres and kafka being healthy before starting.
+  # ---------------------------------------------------------------------------
+  outbox-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wallet-outbox-publisher
+    env_file: .env
+    command: ["python", "-m", "workers.outbox_publisher"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - wallet-net
+    restart: on-failure
+
 volumes:
   postgres_data:
   kafka_data:
 
-# ---------------------------------------------------------------------------
-# Shared bridge network — all services resolve each other by container name
-# ---------------------------------------------------------------------------
 networks:
   wallet-net:
     driver: bridge

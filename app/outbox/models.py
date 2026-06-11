@@ -5,9 +5,14 @@ Solves the dual-write problem — instead of writing to DB and publishing
 to Kafka in two separate operations (which can fail independently), we write
 the transfer row and outbox row in a single DB transaction.
 
-A separate outbox publisher process polls PENDING rows and publishes to Kafka,
-then marks them SENT. If the publisher crashes after publishing but before
-marking SENT, the message gets republished — downstream idempotency handles it.
+Three-state status machine:
+PENDING    — written atomically with transfer, waiting to be claimed
+PROCESSING — claimed by a publisher instance, publish in progress
+SENT       — successfully published to Kafka
+
+The PROCESSING state enables multiple publisher instances to run safely
+(each claims its own rows) and allows a recovery job to detect and reset
+rows stuck in PROCESSING due to publisher crashes.
 """
 
 import enum
@@ -22,6 +27,7 @@ from app.database import Base
 
 class OutboxStatus(str, enum.Enum):
     PENDING = "PENDING"
+    PROCESSING = "PROCESSING"  # claimed by a publisher, publish in progress
     SENT = "SENT"
 
 
